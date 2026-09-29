@@ -34,7 +34,12 @@ export const loadHistory = () => readJson<HistoryEntry[]>(HISTORY_KEY, []);
 export const saveHistory = (history: HistoryEntry[]) => writeJson(HISTORY_KEY, history);
 
 export async function loadApiKey(): Promise<string> {
-  return (await SecureStore.getItemAsync(API_KEY_KEY)) ?? '';
+  try {
+    return (await SecureStore.getItemAsync(API_KEY_KEY)) ?? '';
+  } catch {
+    // Secure storage isn't available (e.g. the web preview).
+    return '';
+  }
 }
 
 export async function saveApiKey(key: string): Promise<void> {

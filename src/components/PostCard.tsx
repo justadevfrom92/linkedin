@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { theme } from '../theme';
@@ -16,12 +17,15 @@ type Props = {
 export function PostCard({ draft, busy, onChangeText, onPost, onSchedule, onDiscard }: Props) {
   const done = draft.status === 'posted' || draft.status === 'scheduled';
   const disabled = busy || done || !draft.text.trim();
+  // Grow the editor to fit the whole post instead of scrolling inside the card.
+  const [height, setHeight] = useState(120);
 
   return (
     <View style={styles.card}>
       <TextInput
-        style={styles.text}
+        style={[styles.text, { height }]}
         multiline
+        onContentSizeChange={(e) => setHeight(Math.max(60, e.nativeEvent.contentSize.height))}
         editable={!done && draft.status !== 'working'}
         value={draft.text}
         onChangeText={onChangeText}
