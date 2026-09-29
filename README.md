@@ -8,7 +8,7 @@ or Company Page.
 
 - **Home** is a scrollable list of prompts. Tap one and the AI writes 5 post ideas for it.
   With an Anthropic API key, Claude writes them. Without a key, the app fills built-in
-  templates. **↻ 5 new ideas** writes another batch, and **Home** (top right) goes back.
+  templates. Scrolling to the end loads 5 more, up to 25 per prompt. **Home** (top right) goes back.
 - Each idea is editable. **Post** publishes it now. **Schedule** lets you pick a date and
   time, and LinkedIn's own scheduler holds the post, so your phone doesn't need to be on
   when it goes out.

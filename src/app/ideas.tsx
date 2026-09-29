@@ -1,11 +1,11 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PostCard } from '../components/PostCard';
 import { ScheduleModal } from '../components/ScheduleModal';
-import { generatePosts } from '../generate';
+import { generatePosts, POSTS_PER_PROMPT } from '../generate';
 import { useLinkedIn } from '../linkedin/LinkedInProvider';
 import { BotAction } from '../linkedin/script';
 import { findPrompt, PROMPTS } from '../prompts';
@@ -14,6 +14,8 @@ import { theme } from '../theme';
 import { Draft } from '../types';
 
 const API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
+/** Scrolling loads more ideas in batches until a prompt has this many. */
+const MAX_IDEAS = 25;
 
 const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 
@@ -38,27 +40,37 @@ export default function Ideas() {
   const linkedIn = useLinkedIn();
 
   const [drafts, setDrafts] = useState<Draft[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Counts every idea generated for this prompt, including discarded ones, so the cap holds.
+  const [generated, setGenerated] = useState(0);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [scheduling, setScheduling] = useState<Draft | null>(null);
+  const inFlight = useRef(false);
 
-  const load = useCallback(async () => {
+  const loadMore = useCallback(async () => {
+    if (inFlight.current || generated >= MAX_IDEAS) return;
+    inFlight.current = true;
     setLoading(true);
     setError('');
     try {
       const history = await loadHistory();
-      const posts = await generatePosts(prompt, API_KEY, history.map((h) => h.text));
-      setDrafts(posts.map((text) => ({ id: newId(), text, status: 'idle' })));
+      const avoid = [...drafts.map((d) => d.text), ...history.map((h) => h.text)];
+      const posts = (await generatePosts(prompt, API_KEY, avoid, generated)).slice(0, MAX_IDEAS - generated);
+      setDrafts((ds) => [...ds, ...posts.map((text): Draft => ({ id: newId(), text, status: 'idle' }))]);
+      setGenerated((n) => n + POSTS_PER_PROMPT);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      inFlight.current = false;
       setLoading(false);
     }
-  }, [prompt]);
+  }, [prompt, drafts, generated]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    loadMore();
+    // Load the first batch once per prompt; later batches come from scrolling.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prompt.id]);
 
   const updateDraft = (id: string, patch: Partial<Draft>) =>
     setDrafts((ds) => ds.map((d) => (d.id === id ? { ...d, ...patch } : d)));
@@ -90,17 +102,21 @@ export default function Ideas() {
         </Pressable>
       </View>
 
-      {loading ? (
+      {drafts.length === 0 ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color={theme.accent} />
-          <Text style={styles.muted}>Writing 5 post ideas...</Text>
-        </View>
-      ) : error ? (
-        <View style={styles.center}>
-          <Text style={styles.error}>{error}</Text>
-          <Pressable style={styles.retry} onPress={load}>
-            <Text style={styles.retryText}>Try again</Text>
-          </Pressable>
+          {error ? (
+            <>
+              <Text style={styles.error}>{error}</Text>
+              <Pressable style={styles.retry} onPress={loadMore}>
+                <Text style={styles.retryText}>Try again</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <ActivityIndicator size="large" color={theme.accent} />
+              <Text style={styles.muted}>Writing {POSTS_PER_PROMPT} post ideas...</Text>
+            </>
+          )}
         </View>
       ) : (
         <FlatList
@@ -108,6 +124,10 @@ export default function Ideas() {
           keyExtractor={(d) => d.id}
           contentContainerStyle={styles.list}
           keyboardShouldPersistTaps="handled"
+          onEndReached={() => {
+            if (!error) loadMore();
+          }}
+          onEndReachedThreshold={0.5}
           renderItem={({ item }) => (
             <PostCard
               draft={item}
@@ -119,9 +139,23 @@ export default function Ideas() {
             />
           )}
           ListFooterComponent={
-            <Pressable style={[styles.retry, linkedIn.busy && styles.disabled]} disabled={linkedIn.busy} onPress={load}>
-              <Text style={styles.retryText}>↻ 5 new ideas</Text>
-            </Pressable>
+            <View style={styles.footer}>
+              {loading ? (
+                <>
+                  <ActivityIndicator color={theme.accent} />
+                  <Text style={styles.muted}>Writing {POSTS_PER_PROMPT} more...</Text>
+                </>
+              ) : error ? (
+                <>
+                  <Text style={styles.error}>{error}</Text>
+                  <Pressable style={styles.retry} onPress={loadMore}>
+                    <Text style={styles.retryText}>Try again</Text>
+                  </Pressable>
+                </>
+              ) : generated >= MAX_IDEAS ? (
+                <Text style={styles.muted}>That's all {MAX_IDEAS} ideas for this prompt.</Text>
+              ) : null}
+            </View>
           }
         />
       )}
@@ -158,6 +192,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, padding: 24 },
   muted: { color: theme.muted, fontSize: 15 },
   error: { color: theme.danger, fontSize: 15, textAlign: 'center' },
+  footer: { alignItems: 'center', gap: 10, paddingVertical: 20, paddingHorizontal: 24 },
   retry: {
     alignSelf: 'center',
     paddingHorizontal: 22,
@@ -165,8 +200,6 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 1,
     borderColor: theme.accent,
-    marginTop: 4,
   },
   retryText: { color: theme.accent, fontWeight: '700', fontSize: 15 },
-  disabled: { opacity: 0.4 },
 });
