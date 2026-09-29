@@ -8,14 +8,14 @@ import { ScheduleModal } from '../components/ScheduleModal';
 import { generatePosts, POSTS_PER_PROMPT } from '../generate';
 import { useLinkedIn } from '../linkedin/LinkedInProvider';
 import { BotAction } from '../linkedin/script';
-import { TrashIcon } from '../components/TrashIcon';
+import { HomeIcon, TrashIcon } from '../components/icons';
 import { deletePrompt, findPrompt, getPrompt, Prompt, PROMPTS } from '../prompts';
 import { addToHistory, loadHistory } from '../storage';
 import { theme } from '../theme';
 import { Draft } from '../types';
 
 const API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
-/** Scrolling loads more ideas in batches until a prompt has this many. */
+/** "Load 5 more" adds ideas in batches until a prompt has this many. */
 const MAX_IDEAS = 25;
 
 const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
@@ -80,7 +80,7 @@ export default function Ideas() {
 
   useEffect(() => {
     loadMore();
-    // Load the first batch once per prompt; later batches come from scrolling.
+    // Load the first batch once per prompt; later batches come from "Load 5 more".
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prompt?.id]);
 
@@ -109,8 +109,14 @@ export default function Ideas() {
         <Text style={styles.prompt} numberOfLines={2}>
           {prompt?.text}
         </Text>
-        <Pressable style={styles.home} onPress={goHome} hitSlop={10} accessibilityRole="button">
-          <Text style={styles.homeText}>Home</Text>
+        <Pressable
+          style={({ pressed }) => [styles.home, pressed && styles.pressed]}
+          onPress={goHome}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Home"
+        >
+          <HomeIcon color="#fff" />
         </Pressable>
         <Pressable
           style={({ pressed }) => [styles.trash, confirmDelete && styles.trashActive, pressed && styles.pressed]}
@@ -156,10 +162,6 @@ export default function Ideas() {
           keyExtractor={(d) => d.id}
           contentContainerStyle={styles.list}
           keyboardShouldPersistTaps="handled"
-          onEndReached={() => {
-            if (!error) loadMore();
-          }}
-          onEndReachedThreshold={0.5}
           renderItem={({ item }) => (
             <PostCard
               draft={item}
@@ -186,7 +188,14 @@ export default function Ideas() {
                 </>
               ) : generated >= MAX_IDEAS ? (
                 <Text style={styles.muted}>That's all {MAX_IDEAS} ideas for this prompt.</Text>
-              ) : null}
+              ) : (
+                <Pressable style={({ pressed }) => [styles.more, pressed && styles.pressed]} onPress={loadMore}>
+                  <Text style={styles.moreText}>Load {POSTS_PER_PROMPT} more</Text>
+                  <Text style={styles.moreCount}>
+                    {generated} of {MAX_IDEAS}
+                  </Text>
+                </Pressable>
+              )}
             </View>
           }
         />
@@ -218,8 +227,26 @@ const styles = StyleSheet.create({
     borderColor: theme.border,
   },
   prompt: { flex: 1, fontSize: 15, fontWeight: '600', color: theme.text },
-  home: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, backgroundColor: theme.accent },
-  homeText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  home: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.accent,
+  },
+  more: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    gap: 2,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.accent,
+    backgroundColor: theme.card,
+  },
+  moreText: { color: theme.accent, fontWeight: '700', fontSize: 16 },
+  moreCount: { color: theme.muted, fontSize: 12 },
   trash: {
     width: 36,
     height: 36,

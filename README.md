@@ -9,8 +9,8 @@ or Company Page.
 - **Home** is a scrollable list of prompts. The **+** button at the bottom adds your own
   prompt to the top of the list. Tap any prompt and the AI writes 5 post ideas for it.
   With an Anthropic API key, Claude writes them. Without a key, the app fills built-in
-  templates. Scrolling to the end loads 5 more, up to 25 per prompt. **Home** (top right) goes back,
-  and the trash can next to it deletes that prompt from the phone.
+  templates. At the bottom, **Load 5 more** adds another batch, up to 25 per prompt. The home icon
+  (top right) goes back, and the trash can next to it deletes that prompt from the phone.
 - Each idea is editable. **Post** publishes it now. **Schedule** lets you pick a date and
   time, and LinkedIn's own scheduler holds the post, so your phone doesn't need to be on
   when it goes out.
@@ -56,11 +56,11 @@ Scan the QR code with the Expo Go app on your phone.
 | --- | --- |
 | `src/app/index.tsx` | Home: the list of prompts |
 | `src/app/new-prompt.tsx` | The + screen for adding your own prompt |
-| `src/app/ideas.tsx` | The 5 ideas for a prompt, with Post, Schedule and Home |
+| `src/app/ideas.tsx` | The ideas for a prompt, with Post, Schedule, Load 5 more, home and trash |
 | `src/prompts.ts` | The prompts shown on Home |
 | `src/generate.ts` | Post generation (Claude, or offline templates) |
 | `src/linkedin/LinkedInProvider.tsx` | Keeps the LinkedIn page alive across screens |
 | `src/linkedin/LinkedInBrowser.tsx` | The hidden, logged-in LinkedIn page and its action queue |
 | `src/linkedin/script.ts` | JavaScript injected into LinkedIn to post and schedule |
-| `src/components/` | Post card and schedule picker |
+| `src/components/` | Post card, schedule picker, bottom bar and icons |
 | `src/storage.ts` | Past posts, so new ideas don't repeat them |
