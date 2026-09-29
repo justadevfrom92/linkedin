@@ -29,19 +29,24 @@ export const PROMPTS: Prompt[] = [
 export const findPrompt = (id: string) => PROMPTS.find((p) => p.id === id);
 
 const CUSTOM_KEY = 'customPrompts';
+/** Built-in prompts you've deleted. They live in code, so they're hidden instead. */
+const HIDDEN_KEY = 'hiddenPrompts';
 
-async function loadCustomPrompts(): Promise<Prompt[]> {
+async function readList<T>(key: string): Promise<T[]> {
   try {
-    const raw = await AsyncStorage.getItem(CUSTOM_KEY);
-    return raw ? (JSON.parse(raw) as Prompt[]) : [];
+    const raw = await AsyncStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T[]) : [];
   } catch {
     return [];
   }
 }
 
+const loadCustomPrompts = () => readList<Prompt>(CUSTOM_KEY);
+
 /** Your own prompts (newest first), then the built-in ones. */
 export async function loadPrompts(): Promise<Prompt[]> {
-  return [...(await loadCustomPrompts()), ...PROMPTS];
+  const hidden = new Set(await readList<string>(HIDDEN_KEY));
+  return [...(await loadCustomPrompts()), ...PROMPTS.filter((p) => !hidden.has(p.id))];
 }
 
 export async function getPrompt(id: string): Promise<Prompt | undefined> {
@@ -52,4 +57,15 @@ export async function addPrompt(text: string): Promise<Prompt> {
   const prompt: Prompt = { id: `custom-${Date.now().toString(36)}`, text, topic: text };
   await AsyncStorage.setItem(CUSTOM_KEY, JSON.stringify([prompt, ...(await loadCustomPrompts())]));
   return prompt;
+}
+
+/** Removes a prompt from the Home list on this phone. */
+export async function deletePrompt(id: string): Promise<void> {
+  if (findPrompt(id)) {
+    const hidden = await readList<string>(HIDDEN_KEY);
+    if (!hidden.includes(id)) await AsyncStorage.setItem(HIDDEN_KEY, JSON.stringify([...hidden, id]));
+  } else {
+    const custom = await loadCustomPrompts();
+    await AsyncStorage.setItem(CUSTOM_KEY, JSON.stringify(custom.filter((p) => p.id !== id)));
+  }
 }

@@ -8,7 +8,8 @@ import { ScheduleModal } from '../components/ScheduleModal';
 import { generatePosts, POSTS_PER_PROMPT } from '../generate';
 import { useLinkedIn } from '../linkedin/LinkedInProvider';
 import { BotAction } from '../linkedin/script';
-import { findPrompt, getPrompt, Prompt, PROMPTS } from '../prompts';
+import { TrashIcon } from '../components/TrashIcon';
+import { deletePrompt, findPrompt, getPrompt, Prompt, PROMPTS } from '../prompts';
 import { addToHistory, loadHistory } from '../storage';
 import { theme } from '../theme';
 import { Draft } from '../types';
@@ -50,6 +51,12 @@ export default function Ideas() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [scheduling, setScheduling] = useState<Draft | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const removePrompt = async () => {
+    if (prompt) await deletePrompt(prompt.id);
+    goHome();
+  };
   const inFlight = useRef(false);
 
   const loadMore = useCallback(async () => {
@@ -105,7 +112,27 @@ export default function Ideas() {
         <Pressable style={styles.home} onPress={goHome} hitSlop={10} accessibilityRole="button">
           <Text style={styles.homeText}>Home</Text>
         </Pressable>
+        <Pressable
+          style={({ pressed }) => [styles.trash, confirmDelete && styles.trashActive, pressed && styles.pressed]}
+          onPress={() => setConfirmDelete((c) => !c)}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Delete prompt"
+        >
+          <TrashIcon color={confirmDelete ? '#fff' : theme.danger} />
+        </Pressable>
       </View>
+      {confirmDelete && (
+        <View style={styles.confirm}>
+          <Text style={styles.confirmText}>Delete this prompt from your phone?</Text>
+          <Pressable onPress={() => setConfirmDelete(false)} hitSlop={8}>
+            <Text style={styles.confirmCancel}>Cancel</Text>
+          </Pressable>
+          <Pressable style={styles.confirmDelete} onPress={removePrompt}>
+            <Text style={styles.confirmDeleteText}>Delete</Text>
+          </Pressable>
+        </View>
+      )}
 
       {drafts.length === 0 ? (
         <View style={styles.center}>
@@ -193,6 +220,31 @@ const styles = StyleSheet.create({
   prompt: { flex: 1, fontSize: 15, fontWeight: '600', color: theme.text },
   home: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, backgroundColor: theme.accent },
   homeText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  trash: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: theme.border,
+  },
+  trashActive: { backgroundColor: theme.danger, borderColor: theme.danger },
+  pressed: { opacity: 0.6 },
+  confirm: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#fdecec',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.border,
+  },
+  confirmText: { flex: 1, fontSize: 14, color: theme.text },
+  confirmCancel: { fontSize: 14, color: theme.muted, fontWeight: '600' },
+  confirmDelete: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 14, backgroundColor: theme.danger },
+  confirmDeleteText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   list: { paddingTop: 12, paddingBottom: 40 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, padding: 24 },
   muted: { color: theme.muted, fontSize: 15 },

@@ -9,7 +9,8 @@ or Company Page.
 - **Home** is a scrollable list of prompts. The **+** button at the bottom adds your own
   prompt to the top of the list. Tap any prompt and the AI writes 5 post ideas for it.
   With an Anthropic API key, Claude writes them. Without a key, the app fills built-in
-  templates. Scrolling to the end loads 5 more, up to 25 per prompt. **Home** (top right) goes back.
+  templates. Scrolling to the end loads 5 more, up to 25 per prompt. **Home** (top right) goes back,
+  and the trash can next to it deletes that prompt from the phone.
 - Each idea is editable. **Post** publishes it now. **Schedule** lets you pick a date and
   time, and LinkedIn's own scheduler holds the post, so your phone doesn't need to be on
   when it goes out.
@@ -47,7 +48,7 @@ Scan the QR code with the Expo Go app on your phone.
 - The Anthropic API key is built into the app bundle, so don't share builds that contain it.
   Each batch of ideas costs a fraction of a cent.
 - The built-in prompts are in `src/prompts.ts`; prompts you add with **+** are saved on
-  the phone.
+  the phone. Deleting a built-in prompt hides it on that phone only.
 
 ## Code map
 
