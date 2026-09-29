@@ -8,7 +8,7 @@ import { ScheduleModal } from '../components/ScheduleModal';
 import { generatePosts, POSTS_PER_PROMPT } from '../generate';
 import { useLinkedIn } from '../linkedin/LinkedInProvider';
 import { BotAction } from '../linkedin/script';
-import { findPrompt, PROMPTS } from '../prompts';
+import { findPrompt, getPrompt, Prompt, PROMPTS } from '../prompts';
 import { addToHistory, loadHistory } from '../storage';
 import { theme } from '../theme';
 import { Draft } from '../types';
@@ -36,8 +36,13 @@ function goHome() {
 
 export default function Ideas() {
   const params = useLocalSearchParams<{ prompt: string }>();
-  const prompt = findPrompt(params.prompt ?? '') ?? PROMPTS[0];
+  // Built-in prompts resolve immediately; ones you created load from storage.
+  const [prompt, setPrompt] = useState<Prompt | undefined>(() => findPrompt(params.prompt ?? ''));
   const linkedIn = useLinkedIn();
+
+  useEffect(() => {
+    if (!prompt) getPrompt(params.prompt ?? '').then((p) => setPrompt(p ?? PROMPTS[0]));
+  }, [prompt, params.prompt]);
 
   const [drafts, setDrafts] = useState<Draft[]>([]);
   // Counts every idea generated for this prompt, including discarded ones, so the cap holds.
@@ -48,7 +53,7 @@ export default function Ideas() {
   const inFlight = useRef(false);
 
   const loadMore = useCallback(async () => {
-    if (inFlight.current || generated >= MAX_IDEAS) return;
+    if (!prompt || inFlight.current || generated >= MAX_IDEAS) return;
     inFlight.current = true;
     setLoading(true);
     setError('');
@@ -70,7 +75,7 @@ export default function Ideas() {
     loadMore();
     // Load the first batch once per prompt; later batches come from scrolling.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prompt.id]);
+  }, [prompt?.id]);
 
   const updateDraft = (id: string, patch: Partial<Draft>) =>
     setDrafts((ds) => ds.map((d) => (d.id === id ? { ...d, ...patch } : d)));
@@ -95,7 +100,7 @@ export default function Ideas() {
     <SafeAreaView style={styles.fill} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.prompt} numberOfLines={2}>
-          {prompt.text}
+          {prompt?.text}
         </Text>
         <Pressable style={styles.home} onPress={goHome} hitSlop={10} accessibilityRole="button">
           <Text style={styles.homeText}>Home</Text>

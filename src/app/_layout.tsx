@@ -12,7 +12,9 @@ export default function RootLayout() {
       <StatusBar style="dark" />
       <View style={{ flex: 1, backgroundColor: theme.bg }}>
         <LinkedInProvider>
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.bg } }} />
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.bg } }}>
+            <Stack.Screen name="new-prompt" options={{ presentation: 'modal' }} />
+          </Stack>
         </LinkedInProvider>
       </View>
     </SafeAreaProvider>

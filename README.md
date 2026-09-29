@@ -6,7 +6,8 @@ or Company Page.
 
 ## How it works
 
-- **Home** is a scrollable list of prompts. Tap one and the AI writes 5 post ideas for it.
+- **Home** is a scrollable list of prompts. The **+** button at the bottom adds your own
+  prompt to the top of the list. Tap any prompt and the AI writes 5 post ideas for it.
   With an Anthropic API key, Claude writes them. Without a key, the app fills built-in
   templates. Scrolling to the end loads 5 more, up to 25 per prompt. **Home** (top right) goes back.
 - Each idea is editable. **Post** publishes it now. **Schedule** lets you pick a date and
@@ -45,13 +46,15 @@ Scan the QR code with the Expo Go app on your phone.
   shows dates differently, change `linkedInDateTime` in `src/app/ideas.tsx`.
 - The Anthropic API key is built into the app bundle, so don't share builds that contain it.
   Each batch of ideas costs a fraction of a cent.
-- To change the prompts on the Home screen, edit `src/prompts.ts`.
+- The built-in prompts are in `src/prompts.ts`; prompts you add with **+** are saved on
+  the phone.
 
 ## Code map
 
 | File | What it does |
 | --- | --- |
 | `src/app/index.tsx` | Home: the list of prompts |
+| `src/app/new-prompt.tsx` | The + screen for adding your own prompt |
 | `src/app/ideas.tsx` | The 5 ideas for a prompt, with Post, Schedule and Home |
 | `src/prompts.ts` | The prompts shown on Home |
 | `src/generate.ts` | Post generation (Claude, or offline templates) |
