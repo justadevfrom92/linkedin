@@ -1,0 +1,172 @@
+import { router, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { PostCard } from '../components/PostCard';
+import { ScheduleModal } from '../components/ScheduleModal';
+import { generatePosts } from '../generate';
+import { useLinkedIn } from '../linkedin/LinkedInProvider';
+import { BotAction } from '../linkedin/script';
+import { findPrompt, PROMPTS } from '../prompts';
+import { addToHistory, loadHistory } from '../storage';
+import { theme } from '../theme';
+import { Draft } from '../types';
+
+const API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
+
+const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+
+/** Formats a Date the way LinkedIn's scheduler fields expect (en-US). */
+function linkedInDateTime(d: Date) {
+  const hours = d.getHours() % 12 || 12;
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return {
+    date: `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`,
+    time: `${hours}:${minutes} ${d.getHours() < 12 ? 'AM' : 'PM'}`,
+  };
+}
+
+function goHome() {
+  if (router.canGoBack()) router.back();
+  else router.replace('/');
+}
+
+export default function Ideas() {
+  const params = useLocalSearchParams<{ prompt: string }>();
+  const prompt = findPrompt(params.prompt ?? '') ?? PROMPTS[0];
+  const linkedIn = useLinkedIn();
+
+  const [drafts, setDrafts] = useState<Draft[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [scheduling, setScheduling] = useState<Draft | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const history = await loadHistory();
+      const posts = await generatePosts(prompt, API_KEY, history.map((h) => h.text));
+      setDrafts(posts.map((text) => ({ id: newId(), text, status: 'idle' })));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [prompt]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const updateDraft = (id: string, patch: Partial<Draft>) =>
+    setDrafts((ds) => ds.map((d) => (d.id === id ? { ...d, ...patch } : d)));
+
+  const publish = async (draft: Draft, when?: Date) => {
+    const action: BotAction = when
+      ? { kind: 'schedule', text: draft.text, ...linkedInDateTime(when) }
+      : { kind: 'post', text: draft.text };
+    updateDraft(draft.id, { status: 'working', note: 'Starting' });
+    try {
+      await linkedIn.publish(action, (step) => updateDraft(draft.id, { note: step }));
+      const iso = (when ?? new Date()).toISOString();
+      const kind = when ? 'scheduled' : 'posted';
+      updateDraft(draft.id, { status: kind, note: undefined, when: iso });
+      await addToHistory({ id: draft.id, text: draft.text, kind, when: iso });
+    } catch (e) {
+      updateDraft(draft.id, { status: 'failed', note: e instanceof Error ? e.message : String(e) });
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.fill} edges={['top']}>
+      <View style={styles.header}>
+        <Text style={styles.prompt} numberOfLines={2}>
+          {prompt.text}
+        </Text>
+        <Pressable style={styles.home} onPress={goHome} hitSlop={10} accessibilityRole="button">
+          <Text style={styles.homeText}>Home</Text>
+        </Pressable>
+      </View>
+
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={theme.accent} />
+          <Text style={styles.muted}>Writing 5 post ideas...</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.center}>
+          <Text style={styles.error}>{error}</Text>
+          <Pressable style={styles.retry} onPress={load}>
+            <Text style={styles.retryText}>Try again</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <FlatList
+          data={drafts}
+          keyExtractor={(d) => d.id}
+          contentContainerStyle={styles.list}
+          keyboardShouldPersistTaps="handled"
+          renderItem={({ item }) => (
+            <PostCard
+              draft={item}
+              busy={linkedIn.busy}
+              onChangeText={(text) => updateDraft(item.id, { text, status: 'idle', note: undefined })}
+              onPost={() => publish(item)}
+              onSchedule={() => setScheduling(item)}
+              onDiscard={() => setDrafts((ds) => ds.filter((d) => d.id !== item.id))}
+            />
+          )}
+          ListFooterComponent={
+            <Pressable style={[styles.retry, linkedIn.busy && styles.disabled]} disabled={linkedIn.busy} onPress={load}>
+              <Text style={styles.retryText}>↻ 5 new ideas</Text>
+            </Pressable>
+          }
+        />
+      )}
+
+      <ScheduleModal
+        visible={!!scheduling}
+        onCancel={() => setScheduling(null)}
+        onConfirm={(when) => {
+          const draft = scheduling!;
+          setScheduling(null);
+          publish(draft, when);
+        }}
+      />
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  fill: { flex: 1, backgroundColor: theme.bg },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: theme.card,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.border,
+  },
+  prompt: { flex: 1, fontSize: 15, fontWeight: '600', color: theme.text },
+  home: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, backgroundColor: theme.accent },
+  homeText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  list: { paddingTop: 12, paddingBottom: 40 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, padding: 24 },
+  muted: { color: theme.muted, fontSize: 15 },
+  error: { color: theme.danger, fontSize: 15, textAlign: 'center' },
+  retry: {
+    alignSelf: 'center',
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: theme.accent,
+    marginTop: 4,
+  },
+  retryText: { color: theme.accent, fontWeight: '700', fontSize: 15 },
+  disabled: { opacity: 0.4 },
+});

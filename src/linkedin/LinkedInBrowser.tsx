@@ -11,6 +11,12 @@ const DESKTOP_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
 const ACTION_TIMEOUT_MS = 90_000;
 
+export class NotLoggedInError extends Error {
+  constructor() {
+    super('Log in to LinkedIn, then tap Post or Schedule again.');
+  }
+}
+
 export type LinkedInBrowserHandle = {
   /** Loads the feed and runs one post/schedule action. Rejects with a readable error. */
   run(action: BotAction, onStep?: (step: string) => void): Promise<void>;
@@ -32,6 +38,8 @@ type Props = {
   visible: boolean;
   onClose: () => void;
   onLoginChange: (loggedIn: boolean) => void;
+  /** Optional line shown above the page, e.g. why it opened. */
+  message?: string;
 };
 
 /**
@@ -39,7 +47,7 @@ type Props = {
  * session persists. It sits invisibly behind the app and is brought to the
  * front when `visible` is set.
  */
-export function LinkedInBrowser({ ref, visible, onClose, onLoginChange }: Props) {
+export function LinkedInBrowser({ ref, visible, onClose, onLoginChange, message }: Props) {
   const webRef = useRef<WebView>(null);
   const pending = useRef<Pending | null>(null);
   const [nonce, setNonce] = useState(0);
@@ -106,7 +114,7 @@ export function LinkedInBrowser({ ref, visible, onClose, onLoginChange }: Props)
       finish();
     } else if (msg.error === 'NOT_LOGGED_IN') {
       onLoginChange(false);
-      finish(new Error('Not logged in to LinkedIn. Tap "Log in" first.'));
+      finish(new NotLoggedInError());
     } else {
       finish(new Error(msg.error));
     }
@@ -128,6 +136,7 @@ export function LinkedInBrowser({ ref, visible, onClose, onLoginChange }: Props)
             <Text style={styles.done}>Done</Text>
           </Pressable>
         </View>
+        {message ? <Text style={styles.message}>{message}</Text> : null}
         <WebView
           ref={webRef}
           source={{ uri: nonce ? `${FEED_URL}?r=${nonce}` : FEED_URL }}
@@ -162,4 +171,5 @@ const styles = StyleSheet.create({
   },
   barTitle: { fontSize: 17, fontWeight: '600' },
   done: { fontSize: 17, color: '#0a66c2', fontWeight: '600' },
+  message: { padding: 12, fontSize: 14, color: '#1d2226', backgroundColor: '#eef3f8' },
 });

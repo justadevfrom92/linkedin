@@ -1,6 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 
-import { Settings } from './types';
+import { Prompt } from './prompts';
+
+export const POSTS_PER_PROMPT = 5;
 
 const POSTS_SCHEMA = {
   type: 'object',
@@ -11,23 +13,12 @@ const POSTS_SCHEMA = {
   additionalProperties: false,
 };
 
-function splitTopics(topics: string): string[] {
-  return topics
-    .split(/[,\n]/)
-    .map((t) => t.trim())
-    .filter(Boolean);
-}
-
 /**
- * Writes `settings.count` fresh LinkedIn posts. Uses Claude when an API key is
+ * Writes fresh LinkedIn posts for a prompt. Uses Claude when an API key is
  * set, otherwise falls back to the offline templates below.
  */
-export async function generatePosts(
-  settings: Settings,
-  apiKey: string,
-  recentPosts: string[],
-): Promise<string[]> {
-  if (!apiKey) return templatePosts(settings);
+export async function generatePosts(prompt: Prompt, apiKey: string, recentPosts: string[]): Promise<string[]> {
+  if (!apiKey) return templatePosts(prompt.topic);
 
   const client = new Anthropic({ apiKey });
   const avoid = recentPosts.length
@@ -51,17 +42,13 @@ export async function generatePosts(
       'Each post is ready to publish as-is: a strong first line, short paragraphs, ' +
       'plain text only (no markdown, no bold/italics), at most 3 relevant hashtags at the end, ' +
       'and under 1,300 characters. Vary the format across posts: story, lesson learned, ' +
-      'contrarian take, practical tips list, question to the audience. Never invent specific ' +
+      'contrarian take, practical tips list, question to the audience. Write in a conversational, ' +
+      'practical voice with no buzzwords. Never invent specific ' +
       'employers, numbers, or events about the author that were not given.',
     messages: [
       {
         role: 'user',
-        content:
-          `Write ${settings.count} different LinkedIn posts.\n\n` +
-          `Topics: ${splitTopics(settings.topics).join(', ') || 'anything professional'}\n` +
-          `Tone: ${settings.tone || 'conversational'}\n` +
-          `About me: ${settings.aboutMe || '(not given)'}` +
-          avoid,
+        content: `Write ${POSTS_PER_PROMPT} different LinkedIn posts about: ${prompt.text}` + avoid,
       },
     ],
   });
@@ -95,12 +82,7 @@ function tag(topic: string): string {
   return topic.replace(/[^a-z0-9]/gi, '').toLowerCase() || 'career';
 }
 
-function templatePosts(settings: Settings): string[] {
-  const topics = splitTopics(settings.topics);
-  if (!topics.length) topics.push('your career');
+function templatePosts(topic: string): string[] {
   const shuffled = [...TEMPLATES].sort(() => Math.random() - 0.5);
-  return Array.from({ length: settings.count }, (_, i) => {
-    const topic = topics[Math.floor(Math.random() * topics.length)];
-    return shuffled[i % shuffled.length](topic);
-  });
+  return shuffled.slice(0, POSTS_PER_PROMPT).map((template) => template(topic));
 }
